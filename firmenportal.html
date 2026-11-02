@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Firmenportal – Mängelmeldungen</title>
+<style>
+  :root {
+    --bg:#BEBEBE; --surface:#1a1a2e; --surface-alt:#60616b;
+    --border:#2e2e4a; --text:#e8e8f0; --text-muted:#c0c0d5;
+    --accent:#d4a017; --ok:#2a9d8f; --nok:#e63946; --warn:#f4a261;
+    --info:#4361ee; --radius:8px;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:system-ui,sans-serif; min-height:100vh; }
+  header { background:var(--surface); border-bottom:1px solid var(--border); padding:14px 20px;
+    display:flex; align-items:center; gap:14px; position:sticky; top:0; z-index:100; }
+  header h1 { font-size:18px; font-weight:700; color:var(--accent); }
+  header span { font-size:13px; color:var(--text-muted); }
+  .container { max-width:900px; margin:0 auto; padding:20px 16px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px; margin-bottom:16px; }
+  .card h2 { font-size:15px; font-weight:600; margin-bottom:12px; color:var(--accent); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; }
+  .badge.offen   { background:rgba(230,57,70,.15);   color:#e63946; }
+  .badge.beauftragt { background:rgba(59,130,246,.15); color:#3b82f6; }
+  .badge.in_bearbeitung { background:rgba(244,162,97,.15); color:#f4a261; }
+  .badge.erledigt{ background:rgba(42,157,143,.15);  color:#2a9d8f; }
+  .badge.dringend,.badge.hoch { background:rgba(230,57,70,.15); color:#e63946; }
+  .badge.mittel  { background:rgba(244,162,97,.15);  color:#f4a261; }
+  .badge.niedrig { background:rgba(42,157,143,.15);  color:#2a9d8f; }
+  .defect-card { background:var(--surface-alt); border:1px solid var(--border);
+    border-radius:var(--radius); padding:16px; margin-bottom:12px; overflow:hidden; }
+  /* v1.1: großer, gut sichtbarer Liegenschafts-Kopf oben in jeder Karte */
+  .prop-header {
+    display:flex; align-items:center; gap:10px; margin:-16px -16px 12px -16px;
+    padding:10px 16px; background:rgba(212,160,23,0.12); border-bottom:1px solid rgba(212,160,23,0.35);
+    flex-wrap:wrap;
+  }
+  .prop-header .prop-nr { font-size:17px; font-weight:700; color:var(--accent); }
+  .prop-header .prop-name { font-size:15px; font-weight:600; color:var(--text); }
+  .prop-header .prop-addr { font-size:12px; color:var(--text-muted); }
+  /* v1.1: Gruppierungs-Header (bei "Nach Liegenschaft gruppieren") */
+  .group-header {
+    margin:20px 0 10px; padding:12px 16px;
+    background:#377d7d;
+    border-left:4px solid var(--accent); border-radius:6px;
+  }
+  .group-header .g-row { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .group-header .g-nr { font-size:20px; font-weight:800; color:var(--accent); }
+  .group-header .g-name { font-size:16px; font-weight:600; color:var(--text); }
+  .group-header .g-count { margin-left:auto; font-size:13px; color:var(--text-muted); background:var(--surface-alt); padding:3px 10px; border-radius:12px; }
+  .group-header .g-count { margin-left:auto; font-size:13px; color:#fff; background:rgba(0,0,0,0.35); padding:3px 10px; border-radius:12px; }
+  /* v1.4: kompakte, klappbare Rech-/Leistungsempfänger im Gruppen-Header */
+  .recipients-details { margin-top:8px; }
+  .recipients-details summary { cursor:pointer; font-size:12px; color:var(--text-muted); padding:4px 0; user-select:none; list-style:none; }
+  .recipients-details summary::before { content:'▸ '; display:inline-block; transition:transform .15s; }
+  .recipients-details[open] summary::before { transform:rotate(90deg); }
+  .recipients-details summary:hover { color:var(--accent); }
+  .recipients-details[open] summary { color:var(--accent); font-weight:600; }
+  .recipients-box { background:rgba(0,0,0,0.15); border-left:3px solid var(--accent); border-radius:0 4px 4px 0;
+    padding:8px 12px; margin-top:6px; font-size:12px; line-height:1.5; }
+  .recipients-box .r-label { color:#27272b; font-weight:700; display:block; margin-bottom:4px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; }
+  .recipients-box .r-value { color:var(--text); white-space:pre-line; display:block; padding-left:4px; }
+  .recipients-box .r-row { margin-bottom:4px; }
+  /* v1.4: gleiche Info kompakt oben in einzelner Karte (Nicht-Gruppiert-Modus) */
+  .recipients-inline { background:rgba(0,0,0,0.10); border-radius:4px; padding:6px 10px; margin-bottom:10px;
+    font-size:11px; color:var(--text-muted); line-height:1.5; }
+  .recipients-inline strong { color:var(--accent); font-weight:600; }
+  .defect-meta { font-size:12px; color:var(--text-muted); margin-bottom:8px; display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; }
+  .defect-desc { font-size:15px; font-weight:500; margin-bottom:10px; }
+  /* v1.1: Mieter-Telefon-Link deutlich hervorheben */
+  .tenant-tel { color:var(--accent); font-weight:600; text-decoration:none; }
+  .tenant-tel:hover { text-decoration:underline; }
+  .defect-footer { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:12px; }
+  .photos { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+  .photos img { width:80px; height:80px; object-fit:cover; border-radius:6px; cursor:pointer;
+    border:1px solid var(--border); }
+  label { font-size:12px; color:var(--text-muted); display:block; margin-bottom:4px; }
+  select, textarea, input[type=text], input[type=date], input[type=time] {
+    width:100%; background:var(--bg); color:var(--text); border:1px solid var(--border);
+    border-radius:6px; padding:8px 10px; font-size:14px; font-family:inherit;
+    transition:border-color .2s;
+  }
+  select:focus, textarea:focus, input:focus { outline:none; border-color:var(--accent); }
+  /* v1.7: Termin-Blöcke */
+  .termin-box { background:rgba(212,160,23,0.08); border:1px solid rgba(212,160,23,0.3); border-radius:6px; padding:10px 12px; }
+  .termin-box .t-title { font-size:13px; font-weight:700; color:var(--accent); margin-bottom:8px; }
+  .termin-row { display:flex; gap:8px; }
+  .termin-row > div { flex:1; }
+  textarea { min-height:70px; resize:vertical; }
+  .btn { border:none; border-radius:6px; padding:9px 18px; font-size:14px; font-weight:600;
+    cursor:pointer; transition:opacity .2s; }
+  .btn:hover { opacity:.85; }
+  .btn-accent { background:var(--accent); color:#1a1a2e; }
+  .btn-secondary { background:var(--surface-alt); color:var(--text); border:1px solid var(--border); }
+  .btn-ok { background:var(--ok); color:#fff; }
+  .btn-sm { padding:5px 12px; font-size:13px; }
+  .feedback-box { background:rgba(42,157,143,.08); border:1px solid rgba(42,157,143,.25);
+    border-radius:6px; padding:10px 12px; margin-top:10px; font-size:13px; }
+  .feedback-box strong { color:var(--ok); }
+  .upload-area { border:2px dashed var(--border); border-radius:6px; padding:16px;
+    text-align:center; cursor:pointer; transition:border-color .2s; }
+  .upload-area:hover { border-color:var(--accent); }
+  .upload-area input { display:none; }
+  .upload-preview { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .upload-preview img { width:70px; height:70px; object-fit:cover; border-radius:6px; }
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:#333; color:#fff; padding:10px 20px; border-radius:20px; font-size:14px;
+    opacity:0; transition:opacity .3s; pointer-events:none; z-index:999; white-space:nowrap; }
+  .toast.show { opacity:1; }
+  .empty { text-align:center; padding:40px 20px; color:var(--text-muted); }
+  .empty .icon { font-size:40px; margin-bottom:12px; }
+  .spinner { text-align:center; padding:60px; color:var(--text-muted); font-size:14px; }
+  .filter-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+  .filter-row select { width:auto; flex:1; min-width:140px; }
+  @media(max-width:600px) { .defect-footer { flex-direction:column; } }
+  .lightbox { display:none; position:fixed; inset:0; background:rgba(0,0,0,.9);
+    z-index:500; align-items:center; justify-content:center; }
+  .lightbox.open { display:flex; }
+  .lightbox img { max-width:95vw; max-height:90vh; border-radius:6px; }
+  .lightbox .close-x { position:absolute; top:16px; right:16px; background:rgba(255,255,255,.1);
+    border:none; color:#fff; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:14px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>⚒ Firmenportal</h1>
+    <span id="headerFirma">Lade...</span>
+  </div>
+  <div style="margin-left:auto;display:flex;gap:10px;align-items:center;">
+    <span id="headerCount" style="font-size:13px;color:var(--text-muted);"></span>
+    <button class="btn btn-secondary btn-sm" onclick="loadDefects()">🔄 Aktualisieren</button>
+  </div>
+</header>
+
+<div class="container">
+  <div id="filterRow" class="filter-row" style="display:none">
+    <select id="filterStatus" onchange="applyFilter()">
+      <option value="">Alle Status</option>
+      <option value="offen">Offen</option>
+      <option value="beauftragt">Beauftragt</option>
+      <option value="in_bearbeitung">In Bearbeitung</option>
+      <option value="erledigt">Erledigt</option>
+    </select>
+    <select id="filterPrio" onchange="applyFilter()">
+      <option value="">Alle Prioritäten</option>
+      <option value="dringend">Dringend</option>
+      <option value="hoch">Hoch</option>
+      <option value="mittel">Mittel</option>
+      <option value="niedrig">Niedrig</option>
+    </select>
+    <!-- v1.1: Toggle Gruppierung nach Liegenschaft -->
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);white-space:nowrap;cursor:pointer;padding:0 6px;">
+      <input type="checkbox" id="groupByProp" onchange="applyFilter()" checked style="width:auto;">
+      Nach Liegenschaft gruppieren
+    </label>
+  </div>
+  <div id="app"><div class="spinner">🔄 Lade Mängel...</div></div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('open')">
+  <button class="close-x" onclick="event.stopPropagation();document.getElementById('lightbox').classList.remove('open')">✕ Schließen</button>
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const PORTAL_URL = 'api/portal.php'; // firmenportal.html liegt in /begehung/, portal.php in /begehung/api/
+const token = new URLSearchParams(location.search).get('token') || '';
+let allDefects = [];
+
+if (!token) {
+  document.getElementById('app').innerHTML = '<div class="card"><div class="empty"><div class="icon">🔒</div><strong>Kein Zugriffstoken.</strong><br>Bitte den Link verwenden, den Ihr Auftraggeber Ihnen geschickt hat.</div></div>';
+}
+
+async function api(body, formData) {
+  const opts = formData
+    ? { method:'POST', body: formData }
+    : { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({...body, token}) };
+  const res = await fetch(PORTAL_URL, opts);
+  return res.json();
+}
+
+async function init() {
+  if (!token) return;
+  try {
+    const data = await api({ action:'validate' });
+    if (!data.ok) {
+      document.getElementById('app').innerHTML = '<div class="card"><div class="empty"><div class="icon">❌</div>' + esc(data.error || 'Ungültiger Token') + '</div></div>';
+      return;
+    }
+    document.getElementById('headerFirma').textContent = data.contractor.name + (data.contractor.trade ? ' · ' + data.contractor.trade : '');
+    loadDefects();
+  } catch(e) {
+    document.getElementById('app').innerHTML = '<div class="card"><div class="empty"><div class="icon">❌</div>Verbindung fehlgeschlagen:<br><small>' + esc(e.message) + '</small><br><small style="color:var(--text-muted)">URL: ' + PORTAL_URL + '</small></div></div>';
+  }
+}
+
+async function loadDefects() {
+  document.getElementById('app').innerHTML = '<div class="spinner">🔄 Lade Mängel...</div>';
+  try {
+    const data = await api({ action:'defects' });
+    if (!data.ok) {
+      document.getElementById('app').innerHTML = '<div class="card"><p style="color:var(--nok)">Fehler: ' + esc(data.error) + '</p></div>';
+      return;
+    }
+    allDefects = data.defects || [];
+    const open = allDefects.filter(d => d.status !== 'erledigt').length;
+    document.getElementById('headerCount').textContent = open + ' offen · ' + allDefects.length + ' gesamt';
+    document.getElementById('filterRow').style.display = allDefects.length > 0 ? 'flex' : 'none';
+    applyFilter();
+  } catch(e) {
+    document.getElementById('app').innerHTML = '<div class="card"><div class="empty"><div class="icon">⚠</div>Laden fehlgeschlagen: ' + esc(e.message) + '</div></div>';
+  }
+}
+
+function applyFilter() {
+  const st = document.getElementById('filterStatus')?.value || '';
+  const pr = document.getElementById('filterPrio')?.value   || '';
+  const filtered = allDefects.filter(d =>
+    (!st || d.status === st) && (!pr || d.priority === pr)
+  );
+  renderDefects(filtered);
+}
+
+function renderDefects(defects) {
+  if (defects.length === 0) {
+    document.getElementById('app').innerHTML = '<div class="empty"><div class="icon">✅</div>Keine Mängel gefunden.</div>';
+    return;
+  }
+  // Sortierung: offen + dringend zuerst
+  const prioPrio = {dringend:0,hoch:1,mittel:2,niedrig:3};
+  const statPrio = {offen:0,beauftragt:1,in_bearbeitung:2,erledigt:3};
+  defects = [...defects].sort((a,b) => {
+    const sd = (statPrio[a.status]||0) - (statPrio[b.status]||0);
+    if (sd !== 0) return sd;
+    return (prioPrio[a.priority]||2) - (prioPrio[b.priority]||2);
+  });
+  // v1.1: Optional nach Liegenschaft gruppieren
+  const groupByProp = document.getElementById('groupByProp')?.checked;
+  if (groupByProp) {
+    // Nach propNumber+propName gruppieren, innerhalb Gruppe Standard-Sortierung
+    const groups = {};
+    defects.forEach(d => {
+      const key = (d.propNumber || '') + '|' + (d.propName || '');
+      groups[key] = groups[key] || {
+        number: d.propNumber, name: d.propName, address: d.propAddress,
+        billing: d.billingRecipient || '', service: d.serviceRecipient || '',  // v1.4
+        items: []
+      };
+      groups[key].items.push(d);
+    });
+    // Gruppen nach Liegenschafts-Nummer sortieren
+    const groupsSorted = Object.values(groups).sort((a,b) => (a.number||'').localeCompare(b.number||''));
+    document.getElementById('app').innerHTML = groupsSorted.map(g => {
+      const openInGroup = g.items.filter(d => d.status !== 'erledigt').length;
+      // v1.4: klappbare Rech/Leist-Info (nur wenn mindestens eine gesetzt)
+      const hasRecipients = g.billing || g.service;
+      const recipientsBlock = hasRecipients ? `
+        <details class="recipients-details">
+          <summary>📋 Rechnungs- & Leistungsempfänger anzeigen</summary>
+          <div class="recipients-box">
+            ${g.billing ? `<div class="r-row"><span class="r-label">Rechnung an:</span><span class="r-value">${esc(g.billing).replace(/\n/g,'<br>')}</span></div>` : ''}
+            ${g.service ? `<div class="r-row"><span class="r-label">Leistung erbracht für:</span><span class="r-value">${esc(g.service).replace(/\n/g,'<br>')}</span></div>` : ''}
+          </div>
+        </details>` : '';
+      return `<div class="group-header">
+        <div class="g-row">
+          <span class="g-nr">🏢 ${esc(g.number || '?')}</span>
+          <span class="g-name">${esc(g.name || '')}</span>
+          <span class="g-count">${g.items.length} Mängel · ${openInGroup} offen</span>
+        </div>
+        ${g.address ? `<span class="g-addr">📍 ${esc(g.address)}</span>` : ''}
+        ${recipientsBlock}
+      </div>` + g.items.map(d => renderCard(d, true)).join('');
+    }).join('');
+  } else {
+    document.getElementById('app').innerHTML = defects.map(d => renderCard(d, false)).join('');
+  }
+}
+
+function renderCard(d, inGroup) {
+  const photoHtml = (d.photos||[]).length
+    ? '<div class="photos">' + d.photos.map(pid =>
+        '<img src="' + PORTAL_URL + '?photo=' + encodeURIComponent(pid) + '&token=' + encodeURIComponent(token) + '" loading="lazy" onclick="lightbox(this.src)" onerror="this.style.display=\'none\'">'
+      ).join('') + '</div>' : '';
+
+  // v1.7: Termin-Zeilen einheitlich formatiert
+  const terminLine = (icon, lbl, date, time, note) => {
+    if (!date && !time && !note) return '';
+    const dt = [date ? fmtDate(date) : '', time ? time + ' Uhr' : ''].filter(Boolean).join(' · ');
+    return '<br>' + icon + ' <strong>' + lbl + ':</strong> ' + esc(dt || '—') + (note ? ' <span style="color:var(--text-muted)">(' + esc(note) + ')</span>' : '');
+  };
+  const terminHtml = terminLine('🔍', 'Vorabtermin', d.vorabDate, d.vorabTime, d.vorabNote)
+                   + terminLine('🔧', 'Durchführung', d.execDate, d.execTime, d.execNote);
+  const fbHtml = (d.feedback || d.feedbackPhoto || terminHtml)
+    ? '<div class="feedback-box"><strong>✓ Ihre Rückmeldung</strong>' +
+      terminHtml +
+      (d.feedback ? '<br>' + esc(d.feedback) : '') +
+      (d.feedbackPhoto ? '<br><img src="api/portal-photo.php?file=' + encodeURIComponent('portal_uploads/' + d.feedbackPhoto) + '&token=' + encodeURIComponent(token) + '" style="max-width:160px;border-radius:6px;margin-top:6px;" onclick="lightbox(this.src)" onerror="this.style.display=\'none\'">' : '') +
+      (d.feedbackAt ? '<br><small style="color:var(--text-muted)">' + fmtDate(d.feedbackAt) + '</small>' : '') +
+      '</div>' : '';
+
+  // v1.1: Prominenter Liegenschafts-Header oben in jeder Karte (nur wenn NICHT gruppiert)
+  const propHeaderHtml = inGroup ? '' : `
+    <div class="prop-header">
+      <span class="prop-nr">🏢 ${esc(d.propNumber||'?')}</span>
+      <span class="prop-name">${esc(d.propName||'')}</span>
+      ${d.propAddress ? `<span class="prop-addr">· 📍 ${esc(d.propAddress)}</span>` : ''}
+    </div>`;
+
+  // v1.4: Rech/Leist-Empfänger nur in Nicht-Gruppen-Modus als kompakter Inline-Balken
+  //       (im Gruppen-Modus stehen sie oben im Gruppen-Kopf, hier wäre es doppelt).
+  const recipientsInline = (!inGroup && (d.billingRecipient || d.serviceRecipient)) ? `
+    <div class="recipients-inline">
+      ${d.billingRecipient ? `<div><strong>📋 Rechnung an:</strong> ${esc(d.billingRecipient).replace(/\n/g,' · ')}</div>` : ''}
+      ${d.serviceRecipient ? `<div><strong>🔧 Leistung für:</strong> ${esc(d.serviceRecipient).replace(/\n/g,' · ')}</div>` : ''}
+    </div>` : '';
+
+  // v1.1: Mieter-Telefon(e) als klickbare Links
+  const phoneHtml = (d.phone || d.mobile) ? (() => {
+    const parts = [];
+    if (d.phone)  parts.push(`<a class="tenant-tel" href="tel:${esc(d.phone.replace(/[^+0-9]/g,''))}">☎ ${esc(d.phone)}</a>`);
+    if (d.mobile) parts.push(`<a class="tenant-tel" href="tel:${esc(d.mobile.replace(/[^+0-9]/g,''))}">📱 ${esc(d.mobile)}</a>`);
+    return `<span>${parts.join(' · ')}</span>`;
+  })() : '';
+
+  // Hausnummer/Etage falls vorhanden
+  const aptExtras = [];
+  if (d.aptFloor) aptExtras.push(esc(d.aptFloor));
+  if (d.aptBuildingUnit) aptExtras.push('Hsnr. ' + esc(d.aptBuildingUnit));
+
+  return `
+  <div class="defect-card" id="card_${esc(d.defectId)}">
+    ${propHeaderHtml}
+    ${recipientsInline}
+    <div class="defect-meta">
+      <span>🚪 <strong>${esc(d.aptNumber)}</strong>${d.aptLocation?' '+esc(d.aptLocation):''}${aptExtras.length?' · '+aptExtras.join(' · '):''}</span>
+      <span>👤 ${esc(d.tenant||'Leerstand')}</span>
+      ${phoneHtml}
+      <span>📅 ${fmtDate(d.inspDate)}</span>
+    </div>
+    <div class="defect-desc">${esc(d.description)||'<em style="color:var(--text-muted)">Keine Beschreibung</em>'}</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <span class="badge ${esc(d.priority)}">${esc(d.priority)}</span>
+      <span class="badge ${esc(d.status)}">${statusLabel(d.status)}</span>
+    </div>
+    ${photoHtml}
+    ${fbHtml}
+    ${d.status !== 'erledigt' ? `
+    <details style="margin-top:12px;">
+      <summary style="cursor:pointer;font-size:13px;color:var(--accent);font-weight:600;">✏ Rückmeldung geben / Status ändern</summary>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
+        <div>
+          <label>Status</label>
+          <select id="status_${esc(d.defectId)}" class="input">
+            <option value="offen" ${d.status==='offen'?'selected':''}>Offen</option>
+            <option value="in_bearbeitung" ${d.status==='in_bearbeitung'?'selected':''}>In Bearbeitung</option>
+            <option value="erledigt">Erledigt</option>
+          </select>
+        </div>
+        <div class="termin-box">
+          <div class="t-title">🔍 Vorabtermin (Besichtigung / Aufmaß)</div>
+          <div class="termin-row">
+            <div><label>Datum</label><input type="date" id="vdate_${esc(d.defectId)}" value="${esc(d.vorabDate||'')}"></div>
+            <div><label>Uhrzeit</label><input type="time" id="vtime_${esc(d.defectId)}" value="${esc(d.vorabTime||'')}"></div>
+          </div>
+          <div style="margin-top:8px;"><label>Notiz</label><input type="text" id="vnote_${esc(d.defectId)}" placeholder="optional" value="${esc(d.vorabNote||'')}"></div>
+        </div>
+        <div class="termin-box">
+          <div class="t-title">🔧 Durchführung</div>
+          <div class="termin-row">
+            <div><label>Datum</label><input type="date" id="edate_${esc(d.defectId)}" value="${esc(d.execDate||'')}"></div>
+            <div><label>Uhrzeit</label><input type="time" id="etime_${esc(d.defectId)}" value="${esc(d.execTime||'')}"></div>
+          </div>
+          <div style="margin-top:8px;"><label>Notiz</label><input type="text" id="enote_${esc(d.defectId)}" placeholder="optional" value="${esc(d.execNote||'')}"></div>
+        </div>
+        <div>
+          <label>Nachricht an Auftraggeber (sonstiges)</label>
+          <textarea id="msg_${esc(d.defectId)}" placeholder="z. B. Mieterin nicht erreichbar / Hinweise...">${esc(d.feedback||'')}</textarea>
+        </div>
+        <div>
+          <label>Foto als Nachweis</label>
+          <div class="upload-area" onclick="document.getElementById('file_${esc(d.defectId)}').click()">
+            <input type="file" id="file_${esc(d.defectId)}" accept="image/*" capture="environment"
+              onchange="previewUpload(this,'${esc(d.defectId)}')">
+            <span style="color:var(--text-muted);font-size:13px;">📷 Foto aufnehmen oder auswählen</span>
+            <div class="upload-preview" id="preview_${esc(d.defectId)}"></div>
+          </div>
+        </div>
+        <button class="btn btn-ok btn-sm" onclick="submitUpdate('${esc(d.defectId)}','${esc(d.inspectionId)}')">
+          ✓ Rückmeldung speichern
+        </button>
+      </div>
+    </details>` : ''}
+  </div>`;
+}
+
+function previewUpload(input, defectId) {
+  const prev = document.getElementById('preview_' + defectId);
+  if (!prev || !input.files[0]) return;
+  const url = URL.createObjectURL(input.files[0]);
+  prev.innerHTML = '<img src="' + url + '">';
+}
+
+async function submitUpdate(defectId, inspectionId) {
+  const statusEl = document.getElementById('status_' + defectId);
+  const msgEl    = document.getElementById('msg_'    + defectId);
+  const fileEl   = document.getElementById('file_'   + defectId);
+  const status   = statusEl?.value || '';
+  const message  = msgEl?.value.trim() || '';
+  const val = id => (document.getElementById(id + '_' + defectId)?.value || '').trim();
+  const vorabDate = val('vdate'), vorabTime = val('vtime'), vorabNote = val('vnote');
+  const execDate  = val('edate'), execTime  = val('etime'), execNote  = val('enote');
+
+  // Text-Update inkl. Termine
+  const res = await api({ action:'update', defectId, inspectionId, status, message,
+                          vorabDate, vorabTime, vorabNote, execDate, execTime, execNote });
+  if (!res.ok) { toast('Fehler: ' + res.error, true); return; }
+
+  // Foto falls vorhanden
+  if (fileEl?.files[0]) {
+    const fd = new FormData();
+    fd.append('token', token);
+    fd.append('action', 'photo');
+    fd.append('defectId', defectId);
+    fd.append('inspectionId', inspectionId);
+    fd.append('photo', fileEl.files[0]);
+    const pRes = await fetch(PORTAL_URL, { method:'POST', body: fd }).then(r=>r.json());
+    if (!pRes.ok) { toast('Rückmeldung gespeichert, Foto fehlgeschlagen', true); }
+  }
+
+  toast('Rückmeldung gespeichert ✓');
+  // Card aktualisieren
+  const d = allDefects.find(x => x.defectId === defectId);
+  if (d) { d.status = status; d.feedback = message; }
+  loadDefects();
+}
+
+function lightbox(src) {
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+
+function statusLabel(s) {
+  return {offen:'Offen',beauftragt:'Beauftragt',in_bearbeitung:'In Bearbeitung',erledigt:'Erledigt'}[s] || s;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = (iso||'').slice(0,10).split('-');
+  return d.length===3 ? d[2]+'.'+d[1]+'.'+d[0] : iso;
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+let toastTimer;
+function toast(msg, err) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = err ? '#c0392b' : '#2a9d8f';
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+init();
+</script>
+</body>
+</html>
